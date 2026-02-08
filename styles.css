@@ -1,0 +1,108 @@
+:root{
+  --bg:#0b1220;
+  --card:#101a2e;
+  --text:#e9eefb;
+  --muted:#a8b3cf;
+  --border:#21304f;
+  --ok:#21c55d;
+  --bad:#ef4444;
+  --btn:#1d2b49;
+  --primary:#2563eb;
+  --danger:#b91c1c;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: linear-gradient(180deg, #070c16, var(--bg));
+  color:var(--text);
+}
+.topbar{
+  padding:20px 16px;
+  border-bottom:1px solid var(--border);
+}
+.wrap{
+  max-width:980px;
+  margin:0 auto;
+  padding:16px;
+  display:grid;
+  gap:16px;
+}
+.card{
+  background:rgba(16,26,46,.9);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+}
+h1,h2{margin:0 0 8px 0}
+.muted{color:var(--muted); margin:0}
+.row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
+button{
+  border:1px solid var(--border);
+  background:var(--btn);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:10px;
+  cursor:pointer;
+}
+button.primary{background:var(--primary); border-color:transparent}
+button.danger{background:var(--danger); border-color:transparent}
+button.secondary{background:#24365e}
+button:disabled{opacity:.6; cursor:not-allowed}
+
+.status{margin-top:10px; min-height:20px; color:var(--muted)}
+.list{display:grid; gap:10px}
+
+.testItem{
+  display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+}
+.testItem .meta{color:var(--muted); font-size:14px}
+.testItem .actions{display:flex; gap:8px}
+
+.hidden{display:none}
+
+.runnerTop{
+  display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;
+}
+.scorebox{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  min-width:240px;
+  background:#0e1730;
+  color:var(--muted);
+  font-size:14px;
+}
+
+.q{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px;
+  background:#0e1730;
+}
+.q h3{margin:0 0 10px 0}
+.answers{display:grid; gap:10px; margin-top:10px}
+.answerBtn{
+  text-align:left;
+  width:100%;
+}
+.feedback{
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid var(--border);
+}
+.feedback.ok{border-color:rgba(33,197,93,.5); color:var(--ok)}
+.feedback.bad{border-color:rgba(239,68,68,.5); color:var(--bad)}
+.final{
+  margin-top:14px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#0e1730;
+}
+.footer{padding:18px 16px; border-top:1px solid var(--border); text-align:center}

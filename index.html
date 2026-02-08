@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Testy</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- PDF.js (ESM) z CDN -->
+  <script type="module">
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs";
+    window.pdfjsLib = pdfjsLib;
+  </script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Testy</h1>
+      <p class="muted">Nahrajte PDF → aplikace z něj vytvoří test (A–D) s klíčem.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>Nahrát PDF</h2>
+      <p class="muted">Můžete vybrat více souborů najednou.</p>
+      <input id="fileInput" type="file" accept="application/pdf" multiple />
+      <div class="row">
+        <button id="btnImport" class="primary">Importovat</button>
+        <button id="btnClearAll" class="danger" title="Smaže uložené testy z tohoto zařízení">Smazat uložené testy</button>
+      </div>
+      <div id="importStatus" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Uložené testy</h2>
+      <div id="testsList" class="list"></div>
+    </section>
+
+    <section class="card hidden" id="runnerCard">
+      <div class="runnerTop">
+        <div>
+          <h2 id="testTitle">Test</h2>
+          <p class="muted" id="testMeta"></p>
+        </div>
+        <div class="scorebox" id="scoreBox"></div>
+      </div>
+
+      <div id="questionBox"></div>
+
+      <div class="row">
+        <button id="btnRestart" class="secondary">Restart test</button>
+        <button id="btnRetryWrong" class="secondary">Procvičit jen chybné</button>
+      </div>
+
+      <div id="finalBox" class="final hidden"></div>
+    </section>
+  </main>
+
+  <footer class="footer muted">
+    <small>Běží čistě v prohlížeči (GitHub Pages). PDF se nikam neodesílá.</small>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
