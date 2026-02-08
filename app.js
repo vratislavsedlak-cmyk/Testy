@@ -1,19 +1,43 @@
 import { parseTestFromPdfText } from "./parser.js";
 import { loadAllTests, upsertTest, clearAllTests } from "./storage.js";
 
+/**
+ * Robustnější extrakce textu z PDF:
+ * - PDF nemá skutečné newline; vytvoříme je heuristikou podle změny Y pozice textových položek.
+ * - Tím vzniknou řádky, které pak parser umí dobře rozdělit na otázky a odpovědi.
+ */
 async function extractTextFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
 
-  const pageTexts = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
+  const pages = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    // Spojit tokeny do řádků (jednoduše mezerou)
-    const pageText = content.items.map(it => it.str).join(" ");
-    pageTexts.push(pageText);
+
+    let lastY = null;
+    let out = "";
+
+    for (const item of content.items) {
+      const str = item.str ?? "";
+      const y = item.transform?.[5];
+
+      if (lastY === null) {
+        lastY = y;
+      } else if (y !== lastY) {
+        out += "\n";
+        lastY = y;
+      }
+
+      // mezera mezi tokeny (PDF.js často rozseká slova)
+      out += str + " ";
+    }
+
+    pages.push(out.trim());
   }
-  return pageTexts.join("\n\n");
+
+  return pages.join("\n\n");
 }
 
 function uid() {
@@ -37,46 +61,52 @@ const els = {
   finalBox: document.getElementById("finalBox"),
 };
 
-let current = null; // {test, order, index, stats, mode}
+let current = null;
+
 function renderTestsList() {
   const tests = loadAllTests();
+
   if (!tests.length) {
     els.testsList.innerHTML = `<p class="muted">Zatím žádné testy.</p>`;
     return;
   }
 
-  els.testsList.innerHTML = tests.map(t => {
-    const dt = new Date(t.createdAt).toLocaleString("cs-CZ");
-    return `
-      <div class="testItem">
-        <div>
-          <strong>${escapeHtml(t.title)}</strong><br/>
-          <span class="meta">Nahráno: ${dt} · Otázek: ${t.questions.length} · Klíč: ${t.answerKeyCount}</span>
+  els.testsList.innerHTML = tests
+    .map((t) => {
+      const dt = new Date(t.createdAt).toLocaleString("cs-CZ");
+      return `
+        <div class="testItem">
+          <div>
+            <strong>${escapeHtml(t.title)}</strong><br/>
+            <span class="meta">Nahráno: ${dt} · Otázek: ${t.questions.length} · Klíč: ${t.answerKeyCount}</span>
+          </div>
+          <div class="actions">
+            <button data-act="run" data-id="${t.id}" class="primary">Spustit</button>
+            <button data-act="del" data-id="${t.id}" class="danger">Smazat</button>
+          </div>
         </div>
-        <div class="actions">
-          <button data-act="run" data-id="${t.id}" class="primary">Spustit</button>
-          <button data-act="del" data-id="${t.id}" class="danger">Smazat</button>
-        </div>
-      </div>
-    `;
-  }).join("");
+      `;
+    })
+    .join("");
 
-  els.testsList.querySelectorAll("button").forEach(btn => {
+  els.testsList.querySelectorAll("button").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
       const act = btn.dataset.act;
-      const tests = loadAllTests();
-      const idx = tests.findIndex(x => x.id === id);
+
+      const testsNow = loadAllTests();
+      const idx = testsNow.findIndex((x) => x.id === id);
       if (idx < 0) return;
 
       if (act === "del") {
-        tests.splice(idx, 1);
-        localStorage.setItem("testy:v1", JSON.stringify(tests));
+        testsNow.splice(idx, 1);
+        localStorage.setItem("testy:v1", JSON.stringify(testsNow));
         renderTestsList();
         return;
       }
+
       if (act === "run") {
-        startTest(tests[idx], "all");
+        startTest(testsNow[idx], "all");
       }
     });
   });
@@ -96,7 +126,7 @@ function startTest(test, mode = "all") {
       wrongNumbers: new Set(),
       answered: new Map(), // qNumber -> {picked, correct}
     },
-    mode, // "all" | "wrong"
+    mode,
     finished: false,
   };
 
@@ -106,7 +136,9 @@ function startTest(test, mode = "all") {
   els.btnRetryWrong.disabled = true;
 
   els.testTitle.textContent = test.title;
-  const missing = test.missingKeyNumbers?.length ? ` · Chybí klíč pro: ${test.missingKeyNumbers.join(", ")}` : "";
+  const missing = test.missingKeyNumbers?.length
+    ? ` · Chybí klíč pro: ${test.missingKeyNumbers.join(", ")}`
+    : "";
   els.testMeta.textContent = `Otázek: ${test.questions.length} · Položek v klíči: ${test.answerKeyCount}${missing}`;
 
   renderScore();
@@ -116,7 +148,10 @@ function startTest(test, mode = "all") {
 
 function renderScore() {
   const totalAnswered = current.stats.correct + current.stats.wrong;
-  const pct = totalAnswered ? Math.round((current.stats.correct / totalAnswered) * 100) : 0;
+  const pct = totalAnswered
+    ? Math.round((current.stats.correct / totalAnswered) * 100)
+    : 0;
+
   els.scoreBox.innerHTML = `
     <div>Správně: <strong style="color:var(--ok)">${current.stats.correct}</strong></div>
     <div>Špatně: <strong style="color:var(--bad)">${current.stats.wrong}</strong></div>
@@ -127,6 +162,7 @@ function renderScore() {
 
 function renderQuestion() {
   const test = current.test;
+
   if (current.index >= current.order.length) {
     finishTest();
     return;
@@ -142,17 +178,23 @@ function renderQuestion() {
     <div class="q">
       <h3>${n}. ${escapeHtml(q.text)}</h3>
       <div class="answers">
-        ${["A","B","C","D"].map(letter => `
-          <button class="answerBtn" data-letter="${letter}" ${already ? "disabled" : ""}>
+        ${["A", "B", "C", "D"]
+          .map(
+            (letter) => `
+          <button class="answerBtn" data-letter="${letter}" ${
+              already ? "disabled" : ""
+            }>
             <strong>${letter})</strong> ${escapeHtml(q.options[letter])}
           </button>
-        `).join("")}
+        `
+          )
+          .join("")}
       </div>
       <div id="feedback"></div>
     </div>
   `;
 
-  els.questionBox.querySelectorAll("button[data-letter]").forEach(btn => {
+  els.questionBox.querySelectorAll("button[data-letter]").forEach((btn) => {
     btn.addEventListener("click", () => handleAnswer(q, btn.dataset.letter));
   });
 }
@@ -161,17 +203,19 @@ function handleAnswer(q, picked) {
   const correct = q.correct; // "A"|"B"|"C"|"D"|null
   const n = q.number;
 
-  // Pokud chybí klíč, bereme jako „nelze vyhodnotit“
   if (!correct) {
     current.stats.answered.set(n, { picked, correct: null });
-    showFeedback(`U této otázky chybí správná odpověď v klíči → nelze vyhodnotit.`, "bad");
+    showFeedback(
+      `U této otázky chybí správná odpověď v klíči → nelze vyhodnotit.`,
+      "bad"
+    );
     nextStep();
     return;
   }
 
   const ok = picked === correct;
-
   current.stats.answered.set(n, { picked, correct });
+
   if (ok) current.stats.correct += 1;
   else {
     current.stats.wrong += 1;
@@ -183,7 +227,10 @@ function handleAnswer(q, picked) {
   if (ok) {
     showFeedback(`Správně (${correct}).`, "ok");
   } else {
-    showFeedback(`Špatně. Správně je ${correct}) ${escapeHtml(q.options[correct])}`, "bad");
+    showFeedback(
+      `Špatně. Správně je ${correct}) ${escapeHtml(q.options[correct])}`,
+      "bad"
+    );
   }
 
   nextStep();
@@ -195,7 +242,6 @@ function showFeedback(html, kind) {
 }
 
 function nextStep() {
-  // malé zpoždění, aby uživatel viděl feedback
   setTimeout(() => {
     current.index += 1;
     renderQuestion();
@@ -206,7 +252,7 @@ function finishTest() {
   current.finished = true;
   els.btnRetryWrong.disabled = current.stats.wrongNumbers.size === 0;
 
-  const wrongList = [...current.stats.wrongNumbers].sort((a,b)=>a-b);
+  const wrongList = [...current.stats.wrongNumbers].sort((a, b) => a - b);
   const total = current.stats.correct + current.stats.wrong;
   const pct = total ? Math.round((current.stats.correct / total) * 100) : 0;
 
@@ -220,23 +266,22 @@ function finishTest() {
         : `<p><strong>Bez chyb.</strong></p>`
     }
   `;
-
-  // nabídnout retry wrong
-  els.btnRetryWrong.disabled = wrongList.length === 0;
 }
 
 function escapeHtml(s) {
   return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-// UI events
+// --- UI events ---
+
 els.btnImport.addEventListener("click", async () => {
   const files = els.fileInput.files;
+
   if (!files || !files.length) {
     els.importStatus.textContent = "Vyberte prosím alespoň jeden PDF soubor.";
     return;
@@ -248,6 +293,7 @@ els.btnImport.addEventListener("click", async () => {
   try {
     for (const f of files) {
       els.importStatus.textContent = `Načítám: ${f.name}…`;
+
       const rawText = await extractTextFromPdf(f);
 
       const parsed = parseTestFromPdfText(rawText, f.name);
@@ -264,11 +310,13 @@ els.btnImport.addEventListener("click", async () => {
       upsertTest(test);
     }
 
-    els.importStatus.textContent = "Hotovo. Testy byly uloženy do tohoto zařízení.";
+    els.importStatus.textContent =
+      "Hotovo. Testy byly uloženy do tohoto zařízení.";
     renderTestsList();
   } catch (e) {
     console.error(e);
-    els.importStatus.textContent = "Chyba při importu. Zkuste jiné PDF nebo mi pošlete ukázku textu z PDF (1–2 otázky + klíč).";
+    els.importStatus.textContent =
+      "Chyba při importu. Zkuste jiné PDF nebo mi pošlete ukázku textu (1–2 otázky + klíč).";
   } finally {
     els.btnImport.disabled = false;
     els.fileInput.value = "";
@@ -289,6 +337,7 @@ els.btnRestart.addEventListener("click", () => {
 
 els.btnRetryWrong.addEventListener("click", () => {
   if (!current) return;
+
   const wrong = [...current.stats.wrongNumbers];
   if (!wrong.length) return;
 
